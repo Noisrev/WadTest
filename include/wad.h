@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 /* Wad entry type*/
-enum EntryType
+typedef enum EntryType
 {
     /* Default */
     Uncompressed,
@@ -14,10 +14,10 @@ enum EntryType
     FileRedirection,
     /* Zstd */
     ZStandardCompressed
-};
+} EntryType;
 
 // Wad entry
-typedef struct WADEntry
+typedef struct W_Entry
 {
     /* Wad entry hash */
     uint64_t XXHash;
@@ -35,48 +35,50 @@ typedef struct WADEntry
     uint16_t Pad;
     /* check sum*/
     uint64_t Checksum;
+    /* Data */
+    void* Buffer;
     /* Next entry */
-    WADEntry* Next;
-};
+    struct W_Entry *Next;
+} WADEntry;
 
 // Riot wad file.
 typedef struct WADFile
 {
     /* Magic Code */
-    char* Magic;
+    char *Magic;
     /* Major version */
     int8_t Major;
     /* Minor version */
     int8_t Minor;
     /* Wad Signature*/
-    char* Signature;
+    char *Signature;
     /* What is this? */
     uint64_t Pad;
     /* Collection size */
-    uint32_t Count;
+    int Count;
     /* A collection of wad entry */
-    WADEntry* Entries; 
-};
+    WADEntry *Entries;
+} Wad;
 
 // Load the WAD from the path.
-static int LoadWadFromPath(WADFile* wad, const char* path);
+int LoadWadFromPath(Wad *wad, const char *path);
 
-// Load the WAD from the buffer.
-static int LoadWadFromBuffer(WADFile* wad, void* buffer, size_t size);
+// Load the WAD file from handle.
+int LoadWadFromHandle(Wad *wad, int handle);
 
 // Add a new entry to WAD Entries.
-static int AddWadEntry(WADFile* wad, void* buffer, size_t size, EntryType type);
+int AddWadEntry(Wad *wad, void *buffer, size_t size, EntryType type);
 
 // Change the data from the entry that matches the hash.
-static int ChangeWadEntry(WADFile* wad, uint64_t hash, void* buffer, size_t size);
+int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size);
 
 // Find the entry that matches the hash.
-static WADEntry* FindWadEntry(WADFile* wad, uint64_t hash);
+WADEntry* FindWadEntry(Wad *wad, uint64_t hash);
 
 // Get the entry using the index.
-static WADEntry* GetWadEntryWithIndex(WADFile* wad, int index);
+WADEntry* GetWadEntryWithIndex(Wad *wad, int index);
 
 // Removes all items in the collection that match the hash.
-static int RemoveWadEntry(WADFile* wad, uint64_t hash);
+int RemoveWadEntry(Wad *wad, uint64_t hash);
 
 #endif
