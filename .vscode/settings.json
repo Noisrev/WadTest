@@ -1,0 +1,9 @@
+{
+    "makefile.launchConfigurations": [
+        {
+            "cwd": "c:\\Users\\Noisr\\clang\\repos\\WadTest\\output",
+            "binaryPath": "c:\\Users\\Noisr\\clang\\repos\\WadTest\\output\\main.exe",
+            "binaryArgs": []
+        }
+    ]
+}
