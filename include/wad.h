@@ -1,13 +1,15 @@
 #ifndef WAD_H
 #define WAD_H
 
+/* Compressed type */
 #define R_Compressed 1
+/* Uncompressed type */
 #define R_Uncmpressed 0
 
 #include <stdio.h>
 #include <stdint.h>
 /* Wad entry type*/
-typedef enum EntryType
+typedef enum W_Type
 {
     /* Default */
     Uncompressed,
@@ -18,6 +20,15 @@ typedef enum EntryType
     /* Zstd */
     ZStandardCompressed
 } EntryType;
+
+// The Buffer
+typedef struct W_Buffer
+{
+    /* Data */
+    void *Cache;
+    /* Size */
+    size_t Size;
+} Buffer;
 
 // Wad entry
 typedef struct W_Entry
@@ -39,13 +50,13 @@ typedef struct W_Entry
     /* check sum*/
     uint64_t Checksum;
     /* Data */
-    void* Buffer;
+    void *Buffer;
     /* Next entry */
     struct W_Entry *Next;
 } WADEntry;
 
 // Riot wad file.
-typedef struct WADFile
+typedef struct _WADFile
 {
     /* Magic Code */
     char Magic[2];
@@ -75,12 +86,13 @@ int AddWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType ty
 int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size);
 
 // Find the entry that matches the hash.
-WADEntry* FindWadEntry(Wad *wad, uint64_t hash);
+WADEntry *FindWadEntry(Wad *wad, uint64_t hash);
 
-void *GetBuffer(Wad *wad, uint64_t hash, int R_Comp);
+// Get the content of the buffer for the specified hash.
+Buffer *GetBuffer(Wad *wad, uint64_t hash, int R_Comp);
 
 // Get the entry using the index.
-WADEntry* GetWadEntryWithIndex(Wad *wad, int index);
+WADEntry *GetWadEntryWithIndex(Wad *wad, int index);
 
 // Removes all items in the collection that match the hash.
 void RemoveWadEntry(Wad *wad, uint64_t hash);
