@@ -1,86 +1,88 @@
 #include "wad.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
-int LoadWadFromPath(Wad *wad, const wchar_t *path)
+int IsNULL(Wad *wad)
 {
+    if (wad == NULL || wad->Entries == NULL)
+    {
+        return 1;
+    }
+    return 0;
+}
+
+void _free_entry(WADEntry *entry)
+{
+    if (entry)
+    {
+        if (entry->Buffer)
+        {
+            free(entry->Buffer);
+        }
+        free(entry);
+    }
+}
+
+Wad *LoadWadFromPath(const wchar_t *path)
+{
+    Wad* wad = malloc(sizeof(Wad));
     // open file
-    FILE* input = _wfopen(path, L"rb+,ccs=UNICODE");
-    if (input == -1)
+    wad->Buffer = _wfopen(path, L"rb+,ccs=UNICODE");
+    if (wad->Buffer == -1)
     {
         //
         return -1;
     }
-    // malloc
-    wad->Magic = (char*)malloc(3);
-    // memory set
-    memset(wad->Magic, '\0', 3);
-    fseek(input, 0, SEEK_SET);
-    // read magic
-    fread(wad->Magic, 1, 2, input);
-    // read major
-    fread(&wad->Major, 1, 1, input);
-    // read minor
-    fread(&wad->Minor, 1, 1, input);
-
-    // malloc signature
-    wad->Signature = (char*)malloc(256);
-    // read signature
-    fread(wad->Signature, 256, 1, input);
-    // pad ?
-    fread(&wad->Pad, 8, 1, input);
-
-    // read count
-    fread(&wad->Count, 4, 1, input);
-
+    fread(wad, 1, 268, wad->Buffer); // header
+    fread(&wad->Count, 1, 4, wad->Buffer); // count
+    
     wad->Entries = NULL;
     for (int i = 0; i < wad->Count; i++)
     {
         WADEntry *node = malloc(sizeof(WADEntry));
         memset(&node->Type, 0, sizeof(node->Type));// The enum is int32 ?
 
-        fread(&node->XXHash, 8, 1, input);
-        fread(&node->Offset, 4, 1, input);
-        fread(&node->CompressedSize, 4, 1, input);
-        fread(&node->UncompressedSize, 4, 1, input);
-        fread(&node->Type, 1, 1, input);
-        fread(&node->IsDuplicated, 1, 1, input);
-        fread(&node->Pad, 2, 1, input);
-        fread(&node->Checksum, 8, 1, input);
+        fread(node, 32, 1, wad->Buffer);
 
-        long start = ftell(input);
-        node->Buffer = malloc(node->CompressedSize);
-
-        fseek(input, node->Offset, SEEK_SET);
-        fread(node->Buffer, 1, node->CompressedSize, input);
-        fseek(input, start, SEEK_SET);
-
+        node->Buffer = NULL;
         node->Next = wad->Entries;
 		wad->Entries = node;
     }
-    // close
-    fclose(input);
+    return wad;
 }
-
-int LoadWadFromHandle(Wad *wad, int handle)
+int AddWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType type)
 {
-    return 0;
-}
-
-int AddWadEntry(Wad *wad, void *buffer, size_t size, EntryType type)
-{
+    if (IsNULL(wad))
+    {
+        return -1;
+    }
 }
 
 int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size)
 {
+    if (IsNULL(wad))
+    {
+        return -1;
+    }
+    WADEntry *entry;
+    if ((entry = FindWadEntry(wad, hash)))
+    {
+        // Do something...
+        return 0;
+    }
+    else
+    {
+        return AddWadEntry(wad, hash, buffer, size, ZStandardCompressed);
+    }
 }
 
 WADEntry* FindWadEntry(Wad *wad, uint64_t hash)
 {
-    if (wad == NULL || wad->Entries == NULL)
+    if (IsNULL(wad))
     {
         return NULL;
     }
@@ -92,13 +94,22 @@ WADEntry* FindWadEntry(Wad *wad, uint64_t hash)
     return temp;
 }
 
+void *GetBuffer(Wad *wad, uint64_t hash, int R_Comp)
+{
+
+}
 WADEntry* GetWadEntryWithIndex(Wad *wad, int index)
 {
-    if (wad == NULL || wad->Entries == NULL || index < 0)
+    if (IsNULL(wad) || index < 0)
     {
         return NULL;
     }
     
+    if (index == 0)
+    {
+        return wad->Entries;
+    }
+
     WADEntry *node, *temp;
     temp = wad->Entries;
 
@@ -115,6 +126,42 @@ WADEntry* GetWadEntryWithIndex(Wad *wad, int index)
     return node;
 }
 
-int RemoveWadEntry(Wad *wad, uint64_t hash)
+void RemoveWadEntry(Wad *wad, uint64_t hash)
 {
+    if (IsNULL(wad))
+    {
+        return 1;
+    }
+    
+    if (wad->Entries->XXHash == hash)
+    {
+        WADEntry *cur = wad->Entries;
+        wad->Entries = cur->Next;
+        wad->Count--;
+
+        _free_entry(cur);
+    }
+    else
+    {
+        WADEntry *head = wad->Entries;
+        WADEntry *cur  = head->Next;
+        while (cur != NULL)
+        {
+            if (cur->XXHash == hash)
+            {
+                WADEntry *next = cur->Next;
+                head->Next = next;
+                wad->Count--;
+
+                _free_entry(cur);
+                break;
+            }
+            else
+            {
+                head = cur;
+                cur  = cur->Next;
+            }
+        }
+        
+    }
 }

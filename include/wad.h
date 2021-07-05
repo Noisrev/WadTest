@@ -1,8 +1,11 @@
 #ifndef WAD_H
 #define WAD_H
 
-#include <stdint.h>
+#define R_Compressed 1
+#define R_Uncmpressed 0
 
+#include <stdio.h>
+#include <stdint.h>
 /* Wad entry type*/
 typedef enum EntryType
 {
@@ -45,29 +48,28 @@ typedef struct W_Entry
 typedef struct WADFile
 {
     /* Magic Code */
-    char *Magic;
+    char Magic[2];
     /* Major version */
     int8_t Major;
     /* Minor version */
     int8_t Minor;
     /* Wad Signature*/
-    char *Signature;
+    char Signature[256];
     /* What is this? */
     uint64_t Pad;
     /* Collection size */
     int Count;
     /* A collection of wad entry */
     WADEntry *Entries;
+    /* Wad data */
+    FILE *Buffer;
 } Wad;
 
 // Load the WAD from the path.
-int LoadWadFromPath(Wad *wad, const wchar_t *path);
-
-// Load the WAD file from handle.
-int LoadWadFromHandle(Wad *wad, int handle);
+Wad *LoadWadFromPath(const wchar_t *path);
 
 // Add a new entry to WAD Entries.
-int AddWadEntry(Wad *wad, void *buffer, size_t size, EntryType type);
+int AddWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType type);
 
 // Change the data from the entry that matches the hash.
 int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size);
@@ -75,10 +77,12 @@ int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size);
 // Find the entry that matches the hash.
 WADEntry* FindWadEntry(Wad *wad, uint64_t hash);
 
+void *GetBuffer(Wad *wad, uint64_t hash, int R_Comp);
+
 // Get the entry using the index.
 WADEntry* GetWadEntryWithIndex(Wad *wad, int index);
 
 // Removes all items in the collection that match the hash.
-int RemoveWadEntry(Wad *wad, uint64_t hash);
+void RemoveWadEntry(Wad *wad, uint64_t hash);
 
 #endif

@@ -1,5 +1,7 @@
 {
     "files.associations": {
-        "wad.h": "c"
+        "wad.h": "c",
+        "algorithm": "c",
+        "stdlib.h": "c"
     }
 }
