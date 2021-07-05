@@ -61,7 +61,7 @@ typedef struct WADFile
 } Wad;
 
 // Load the WAD from the path.
-int LoadWadFromPath(Wad *wad, const char *path);
+int LoadWadFromPath(Wad *wad, const wchar_t *path);
 
 // Load the WAD file from handle.
 int LoadWadFromHandle(Wad *wad, int handle);

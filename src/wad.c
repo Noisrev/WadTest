@@ -5,10 +5,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-int LoadWadFromPath(Wad *wad, const char *path)
+int LoadWadFromPath(Wad *wad, const wchar_t *path)
 {
     // open file
-    FILE* input = fopen(path, "rb+");
+    FILE* input = _wfopen(path, L"rb+,ccs=UNICODE");
     if (input == -1)
     {
         //
@@ -36,12 +36,11 @@ int LoadWadFromPath(Wad *wad, const char *path)
     // read count
     fread(&wad->Count, 4, 1, input);
 
-    wad->Entries = malloc(sizeof(WADEntry));
-    wad->Entries->Next = NULL;
+    wad->Entries = NULL;
     for (int i = 0; i < wad->Count; i++)
     {
         WADEntry *node = malloc(sizeof(WADEntry));
-        memset(&node->Type, 0, 4);// The enum is int32 ?
+        memset(&node->Type, 0, sizeof(node->Type));// The enum is int32 ?
 
         fread(&node->XXHash, 8, 1, input);
         fread(&node->Offset, 4, 1, input);
@@ -59,8 +58,8 @@ int LoadWadFromPath(Wad *wad, const char *path)
         fread(node->Buffer, 1, node->CompressedSize, input);
         fseek(input, start, SEEK_SET);
 
-        node->Next = wad->Entries->Next;
-		wad->Entries->Next = node;
+        node->Next = wad->Entries;
+		wad->Entries = node;
     }
     // close
     fclose(input);
@@ -86,12 +85,8 @@ WADEntry* FindWadEntry(Wad *wad, uint64_t hash)
         return NULL;
     }
     WADEntry *temp = wad->Entries;
-    while (temp->XXHash != hash)
+    while (temp && temp->XXHash != hash)
     {
-        if (temp == NULL)
-        {
-            break;
-        }
         temp = temp->Next;
     }
     return temp;
@@ -107,6 +102,7 @@ WADEntry* GetWadEntryWithIndex(Wad *wad, int index)
     WADEntry *node, *temp;
     temp = wad->Entries;
 
+    index--;
 	while (temp != NULL)
     {
 		if (index-- == 0)
