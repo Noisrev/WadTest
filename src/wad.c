@@ -131,6 +131,8 @@ int AddWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType ty
     node->Type = type;
     /* Set the uncompressed size*/
     node->UncompressedSize = size;
+    /* Set the is duplicated */
+    node->IsDuplicated = 0;
 
     /* uncompressed */
     if (type == Uncompressed)
@@ -486,10 +488,12 @@ void W_ForEach(Wad *wad, void (*func)(WADEntry **entry))
     /* entry is not NULL */
     while (entry)
     {
+        WADEntry *next = entry->Next;
         /* invoke */
         (*func)(&entry);
         /* to Next */
-        entry = entry->Next;
+        
+        entry = next;
     }
 }
 
@@ -498,50 +502,77 @@ void W_Write(Wad *wad, const wchar_t *path)
     FILE *output = _wfopen(path, L"wb+,ccs=UNICODE");
     if (output)
     {
-        fwrite(&wad->Magic, 1, 2, output);
+        /* Write the magic code */
+        fwrite(&wad->Magic, 2, 1, output);
+        /* Write the major */
         fwrite(&wad->Major, 1, 1, output);
+        /* Write the minor */
         fwrite(&wad->Minor, 1, 1, output);
-
+        /* Write the signature */
         fwrite(&wad->Signature, 256, 1, output);
+        /* Write the Pad */
         fwrite(&wad->Pad, 8, 1, output);
+        /* Write the Count */
         fwrite(&wad->Count, 4, 1, output);
 
-        long hashesOffset = ftell(output);
-        int hashesSize = 32 * wad->Count;
+        /* hashes offset */
+        long hOffset = ftell(output);
+        /* hashes size */
+        int hSize = 32 * wad->Count;
 
-        long dataOffset = hashesOffset + hashesSize;
+        /* data offset */
+        long dataOffset = hOffset + hSize;
+        /* go to the data offset */
         fseek(output, dataOffset, SEEK_SET);
 
+        /* Set to first */
         WADEntry *entry = wad->Entries;
         /* entry is not NULL */
         while (entry)
         {
+            /* if buffer is null */
             if (entry->Buffer == NULL)
             {
+                /* Get the buffer */
                 GetBuffer(wad, entry->XXHash, R_Compressed);
             }
 
+            /* Set the offset */
             entry->Offset = ftell(output);
+            /* FileRedirection */
             if (entry->Type == FileRedirection)
             {
+                /* Write the length */
                 fwrite(&entry->Buffer->Size, 4, 1, output);
             }
+            /* Write the cache */
             fwrite(entry->Buffer->Cache, entry->Buffer->Size, 1, output);
             /* to Next */
             entry = entry->Next;
         }
 
-        fseek(output, hashesOffset, SEEK_SET);
+        /* go to the hashes offset */
+        fseek(output, hOffset, SEEK_SET);
+        /* Set to first */
         entry = wad->Entries;
+        /* entry is not Null */
         while (entry)
         {
+            /* Write the xxhash */
             fwrite(&entry->XXHash, 8, 1, output);
+            /* Write the offset */
             fwrite(&entry->Offset, 4, 1, output);
+            /* Write the compressed size */
             fwrite(&entry->CompressedSize, 4, 1, output);
+            /* Write the uncompressed size */
             fwrite(&entry->UncompressedSize, 4, 1, output);
+            /* Write the type */
             fwrite(&entry->Type, 1, 1, output);
+            /* Write the is duplicated*/
             fwrite(&entry->IsDuplicated, 1, 1, output);
+            /* Write the pad */
             fwrite(&entry->Pad, 2, 1, output);
+            /* Write the checksum*/
             fwrite(&entry->Checksum, 8, 1, output);
             /* to Next */
             entry = entry->Next;
