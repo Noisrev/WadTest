@@ -42,10 +42,16 @@ void _free_entry(WADEntry *entry)
     }
 }
 
+Wad *CreateWad()
+{
+    Wad *wad = malloc(sizeof(Wad));
+    memset(wad, 0, sizeof(Wad));
+    return wad;
+}
 Wad *LoadWadFromPath(const wchar_t *path)
 {
     /* malloc */
-    Wad *wad = malloc(sizeof(Wad));
+    Wad *wad = CreateWad();
     // open file
     wad->Buffer = _wfopen(path, L"rb+,ccs=UNICODE");
 

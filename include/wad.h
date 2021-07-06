@@ -79,6 +79,9 @@ typedef struct _WADFile
     FILE *Buffer;
 } Wad;
 
+// Create an empty WAD
+Wad *CreateWad();
+
 // Load the WAD from the path.
 Wad *LoadWadFromPath(const wchar_t *path);
 
