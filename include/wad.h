@@ -111,4 +111,5 @@ void W_ForEach(Wad *wad, void(*func)(WADEntry** entry));
 
 /* Write Wad File */
 void W_Write(Wad *wad, const wchar_t *path);
+
 #endif

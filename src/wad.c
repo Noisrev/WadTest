@@ -21,8 +21,10 @@ void _free_entry_buffer(Buffer **buffer)
     /* The buffer is not NULL? */
     if (*buffer) /* true */
     {
+        /* The cache is not null ? */
         if ((*buffer)->Cache)
         {
+            /* free the cache */
             free((*buffer)->Cache);
             (*buffer)->Cache = NULL;
         }
@@ -80,9 +82,10 @@ Wad *LoadWadFromPath(const wchar_t *path)
         /* Open fail */
         return NULL;
     }
-
-    fread(wad, 1, 268, wad->Buffer);       /* header */
-    fread(&wad->Count, 1, 4, wad->Buffer); /* count */
+    /* Read the header */
+    fread(wad, 1, 268, wad->Buffer);
+    /* Read the count*/
+    fread(&wad->Count, 1, 4, wad->Buffer);
 
     /* Set the first is NULL */
     wad->Entries = NULL;
@@ -90,14 +93,21 @@ Wad *LoadWadFromPath(const wchar_t *path)
     {
         /* malloc a new node */
         WADEntry *node = (WADEntry *)w_malloc(sizeof(WADEntry));
-
+        /* Read the xxhash */
         fread(&node->XXHash, 8, 1, wad->Buffer);
+        /* Read the offset */
         fread(&node->Offset, 4, 1, wad->Buffer);
+        /* Read the compressed size */
         fread(&node->CompressedSize, 4, 1, wad->Buffer);
+        /* Read the uncompressed size */
         fread(&node->UncompressedSize, 4, 1, wad->Buffer);
+        /* Read the type */
         fread(&node->Type, 1, 1, wad->Buffer);
+        /* Read the 'is duplicated' */
         fread(&node->IsDuplicated, 1, 1, wad->Buffer);
+        /* Read the pad */
         fread(&node->Pad, 2, 1, wad->Buffer);
+        /* Read the checksum */
         fread(&node->Checksum, 8, 1, wad->Buffer);
         /* Set buffer */
         node->Buffer = NULL;
@@ -105,6 +115,7 @@ Wad *LoadWadFromPath(const wchar_t *path)
         node->Next = wad->Entries;
         wad->Entries = node;
     }
+    /* Return */
     return wad;
 }
 int AddWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType type)
@@ -350,7 +361,6 @@ Buffer *GetBuffer(Wad *wad, uint64_t hash, int R_Comp)
             entry->Buffer->Size = entry->UncompressedSize;
             /* free the compressBuffer */
             free(compressBuffer);
-            compressBuffer = NULL;
         }
         /* Return */
         return entry->Buffer;
@@ -472,11 +482,15 @@ void RemoveWadEntry(Wad *wad, uint64_t hash)
 
 void W_Close(Wad **wad)
 {
+    /* free entries */
     W_ForEach(*wad, _free_entry);
+    /* The buffer is not null ? */
     if ((*(wad))->Buffer)
     {
+        /* Close the buffer */
         fclose((*wad)->Buffer);
     }
+    /* free the wad */
     free(*wad);
     *wad = NULL;
 }
@@ -499,7 +513,9 @@ void W_ForEach(Wad *wad, void (*func)(WADEntry **entry))
 
 void W_Write(Wad *wad, const wchar_t *path)
 {
+    /* Create a file */
     FILE *output = _wfopen(path, L"wb+,ccs=UNICODE");
+    /* The output is not null ?? */
     if (output)
     {
         /* Write the magic code */
@@ -577,7 +593,9 @@ void W_Write(Wad *wad, const wchar_t *path)
             /* to Next */
             entry = entry->Next;
         }
+        /* flush */
         fflush(output);
+        /* Close the 'output' */
         fclose(output);
     }
 }
