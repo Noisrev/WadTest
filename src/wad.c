@@ -5,6 +5,7 @@
 // The wad is null ?
 int IsNULL(Wad *wad)
 {
+    /* wad is NULL ? */
     if (wad == NULL)
     {
         // true
@@ -29,6 +30,7 @@ void _free_entry_buffer(Buffer *buffer)
         buffer = NULL;
     }
 }
+
 /* free the entry. */
 void _free_entry(WADEntry *entry)
 {
@@ -44,17 +46,22 @@ void _free_entry(WADEntry *entry)
 
 void *w_malloc(size_t size)
 {
+    /* create */
     void *buffer = malloc(size);
+    /* Set the buffer byte to 0 */
     memset(buffer, 0, size);
+    /* Return */
     return buffer;
 }
 
 Wad *CreateWad()
 {
+    /* malloc a new Wad */
     Wad* wad = (Wad *)w_malloc(sizeof(Wad));
+    /* Set the magic */
     wad->Magic[0] = 'R';
     wad->Magic[0] = 'W';
-
+    /* Set the version */
     wad->Major = 3;
     wad->Minor = 1;
     return wad;
@@ -79,6 +86,7 @@ Wad *LoadWadFromPath(const wchar_t *path)
     wad->Entries = NULL;
     for (int i = 0; i < wad->Count; i++)
     {
+        /* malloc a new node */
         WADEntry *node = (WADEntry *)w_malloc(sizeof(WADEntry));
 
         fread(&node->XXHash, 8, 1, wad->Buffer);
@@ -111,54 +119,80 @@ int AddWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType ty
         /* Return */
         return 0;
     }
-
+    /* a new node */
     WADEntry *node = (WADEntry *)w_malloc(sizeof(WADEntry));
+    /* Set the buffer */
     node->Buffer = (Buffer *)w_malloc(sizeof(Buffer));
+    /* Set the xxhash */
     node->XXHash = hash;
+    /* Set the type */
     node->Type = type;
+    /* Set the uncompressed size*/
     node->UncompressedSize = size;
 
+    /* uncompressed */
     if (type == Uncompressed)
     {
+        /* Set the buffer size */
         node->Buffer->Size = size;
+        /* Set the compressed size */
         node->CompressedSize = size;
+        /* Set the cache */
         node->Buffer->Cache = w_malloc(size);
+        /* Copy the buffer to the cache */
         memcpy(node->Buffer->Cache, buffer, size);
     }
-    else
+    else /* compressed */
     {
+        /* destination */
         size_t dSize = 0;
         void *dBuff = NULL;
+        /* gzip */
         if (type == GZipCompressed)
         {
+            /* compressed size */
             dSize = compressBound(size);
+            /* Set the dbuff */
             dBuff = w_malloc(dSize);
 
+            /* compress */
             compress(dBuff, &dSize, buffer, size);
-        }
+        } /* zstd */
         else if (type == ZStandardCompressed)
         {
+            /* compressed size */
             dSize = ZSTD_compressBound(size);
+            /* Set the dbuff */
             dBuff = w_malloc(dSize);
 
+            /* compress */
             ZSTD_compress(dBuff, dSize, buffer, size, 23);
-        }
+        } /* link */
         else
         {
+            /* Set the dSize */
             dSize = size;
+            /* Set the dBuff */
             dBuff = w_malloc(dSize);
+            /* Copy the buffer to the dBuff */
             memcpy(dBuff, buffer, size);
         }
-        node->Checksum = XXH_INLINE_XXH3_64bits(dBuff, dSize);
+        /* Set the compressed size */
         node->CompressedSize = dSize;
+        /* Set the cache */
         node->Buffer->Cache = dBuff;
+        /* Set the size */
         node->Buffer->Size = dSize;
     }
+    /* Set the checksum */
     node->Checksum = XXH_INLINE_XXH3_64bits(node->Buffer->Cache, node->Buffer->Size);
+    /* node->head */
     node->Next = wad->Entries;
     wad->Entries = node;
+    /* count + 1 */
     wad->Count++;
 
+    /* Return true */
     return 1;
 }
 
@@ -168,48 +202,62 @@ int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size)
     {
         return -1;
     }
+    /* node */
     WADEntry *entry;
+    /* Exist ? */
     if ((entry = FindWadEntry(wad, hash)))
     {
+        /* Set the old buffer */
         Buffer *oldBuffer = entry->Buffer;
+        /* create a new buffer */
         entry->Buffer = (Buffer*)w_malloc(sizeof(Buffer));
+        /* Uncompressed */
         if (entry->Type == Uncompressed)
         {
+            /* Set the buffer */
             entry->Buffer->Cache = w_malloc(size);
             entry->Buffer->Size = size;
+            /* Copy the buffer */
             memcpy(entry->Buffer->Cache, buffer, size);
-        }
+        } /* Gzip */
         else if (entry->Type == GZipCompressed)
         {
+            /* Set the buffer */
             entry->Buffer->Size = compressBound(size);
             entry->Buffer->Cache = w_malloc(entry->Buffer->Size);
-
+            /* compress */
             compress(entry->Buffer->Cache, &entry->Buffer->Size, buffer, size);
-        }
+        } /* Zstd */
         else if (entry->Type == ZStandardCompressed)
         {
+            /* Set the buffer */
             entry->Buffer->Size = ZSTD_compressBound(size);
             entry->Buffer->Cache = w_malloc(entry->Buffer->Size);
-
+            /* compress */
             ZSTD_compress(entry->Buffer->Cache, entry->Buffer->Size, buffer, size, 23);
-        }
+        } /* Link */
         else
         {
+            /* Set the buffer */
             entry->Buffer->Size = size;
             entry->Buffer->Cache = w_malloc(entry->Buffer->Size);
+            /* Copy the buffer*/
             memcpy(entry->Buffer->Cache, buffer, size);
         }
+        /* free old buffer */
         _free_entry_buffer(oldBuffer);
-
+        /* Set the compressed size */
         entry->CompressedSize = entry->Buffer->Size;
+        /* Set the uncompressed size */
         entry->UncompressedSize = size;
-
+        /* Set the checksum */
         entry->Checksum = XXH_INLINE_XXH3_64bits(entry->Buffer->Cache, entry->Buffer->Size);
-
+        /* Return true */
         return 1;
     }
     else
     {
+        /* Return */
         return 0;
     }
 }
@@ -235,12 +283,18 @@ WADEntry *FindWadEntry(Wad *wad, uint64_t hash)
 
 void W_ForEach(Wad *wad, void (*func)(int index, WADEntry *entry))
 {
+    /* The first node */
     WADEntry *entry = wad->Entries;
+    /* Index */
     int index = 0;
+    /* entry is not NULL */
     while (entry)
     {
+        /* invoke */
         (*func)(index, entry);
+        /* to Next */
         entry = entry->Next;
+        /* Index + 1 */
         index++;
     }
 }
@@ -261,48 +315,62 @@ Buffer *GetBuffer(Wad *wad, uint64_t hash, int R_Comp)
             /* Return */
             return entry->Buffer;
         }
-
+        /* Set the buffer*/
         entry->Buffer = malloc(sizeof(Buffer));
         /* malloc */
         void *compressBuffer = w_malloc(entry->CompressedSize);
-
+        /* Seek */
         fseek(wad->Buffer, entry->Offset, SEEK_SET);
+        /* Read buffer */
         fread(compressBuffer, 1, entry->CompressedSize, wad->Buffer);
+        /* Data Type */
         if (R_Comp) /* compressed */
         {
+            /* Set the cache */
             entry->Buffer->Cache = compressBuffer;
+            /* Set the size*/
             entry->Buffer->Size = entry->CompressedSize;
-        }
+        } /* uncompressed */
         else
         {
+            /* uncompressed */
             if (entry->Type == Uncompressed)
             {
+                /* Set the cache */
                 entry->Buffer->Cache = compressBuffer;
             }
             else
             {
+                /* malloc a new cache */
                 entry->Buffer->Cache = w_malloc(entry->UncompressedSize);
 
                 if (entry->Type == GZipCompressed)
                 {
+                    /* gzip decompress */
                     uncompress(entry->Buffer->Cache, &entry->UncompressedSize, compressBuffer, entry->CompressedSize);
                 }
                 else if (entry->Type == ZStandardCompressed)
                 {
+                    /* zstd decompress */
                     ZSTD_decompress(entry->Buffer->Cache, entry->UncompressedSize, compressBuffer, entry->CompressedSize);
                 }
                 else
                 {
+                    /* link ? */
                     memcpy(entry->Buffer->Cache, compressBuffer + 4, entry->CompressedSize - 4);
                 }
             }
+            /* Set the size */
             entry->Buffer->Size = entry->UncompressedSize;
+            /* free the compressBuffer */
             free(compressBuffer);
         }
+        /* Return */
         return entry->Buffer;
     }
     return NULL;
 }
+
 WADEntry *GetWadEntryWithIndex(Wad *wad, int index)
 {
     if (IsNULL(wad) || index < 0)
@@ -367,7 +435,9 @@ void RemoveWadEntry(Wad *wad, uint64_t hash)
          * free head
          */
         WADEntry *cur = wad->Entries;
+        /* Now. Entries is the second element */
         wad->Entries = cur->Next;
+        /* Count - 1 */
         wad->Count--;
 
         _free_entry(cur);
@@ -384,19 +454,28 @@ void RemoveWadEntry(Wad *wad, uint64_t hash)
          */
         WADEntry *head = wad->Entries;
         WADEntry *cur = head->Next;
+        /* cur is not NULL */
         while (cur != NULL)
         {
+            /* Equal ? */
             if (cur->XXHash == hash)
             {
+                /* Set the next node */
                 WADEntry *next = cur->Next;
+                /* head->cur->next */
+                /* Now, it's head->next */
                 head->Next = next;
+                /* count - 1*/
                 wad->Count--;
 
+                /* free the cur */
                 _free_entry(cur);
+                /* Return */
                 break;
             }
             else
             {
+                /* to Next */
                 head = cur;
                 cur = cur->Next;
             }

@@ -14,6 +14,4 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: make
-      run: mingw32-make.exe 
-    - name: clean
-      run: mingw32-make.exe  clean
+      run: mingw32-make.exe
