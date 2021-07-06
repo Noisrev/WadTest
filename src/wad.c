@@ -469,6 +469,10 @@ void RemoveWadEntry(Wad *wad, uint64_t hash)
 void W_Close(Wad **wad)
 {
     W_ForEach(*wad, _free_entry);
+    if ((*(wad))->Buffer)
+    {
+        fclose((*wad)->Buffer);
+    }
     free(*wad);
     *wad = NULL;
 }
