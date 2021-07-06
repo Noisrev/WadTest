@@ -23,14 +23,14 @@ char *GetType(EntryType type)
 	}
 }
 
-void PrintWad(WADEntry *entry)
+void PrintWad(WADEntry **entry)
 {
 	printf("===============Start============\n");
-	printf("XXHash: %lld\n", entry->XXHash);
-	printf("CompressedSize: %u\n", entry->CompressedSize);
-	printf("UncompressedSize: %u\n", entry->UncompressedSize);
-	printf("Type: %s\n", GetType(entry->Type));
-	printf("Checksum: %lld\n", entry->Checksum);
+	printf("XXHash: %lld\n", (*entry)->XXHash);
+	printf("CompressedSize: %u\n", (*entry)->CompressedSize);
+	printf("UncompressedSize: %u\n", (*entry)->UncompressedSize);
+	printf("Type: %s\n", GetType((*entry)->Type));
+	printf("Checksum: %lld\n", (*entry)->Checksum);
 	printf("================End============\n");
 }
 
@@ -75,6 +75,8 @@ int main()
 		Buffer *dBuff3 = GetBuffer(wad, 3, R_Uncmpressed);
 		Buffer *dBuff4 = GetBuffer(wad, 4, R_Uncmpressed);
 
+		W_Write(wad, L"Test.wad");
+		
 		RemoveWadEntry(wad, 1);
 		RemoveWadEntry(wad, 2);
 		RemoveWadEntry(wad, 3);

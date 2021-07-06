@@ -30,7 +30,7 @@ typedef struct W_Buffer
     /* Data */
     void *Cache;
     /* Size */
-    size_t Size;
+    uint32_t Size;
 } Buffer;
 
 // Wad entry
@@ -107,6 +107,8 @@ void RemoveWadEntry(Wad *wad, uint64_t hash);
 void W_Close(Wad **wad);
 
 /* Foreach in wad entries. */
-void W_ForEach(Wad *wad, void(*func)(WADEntry* entry));
+void W_ForEach(Wad *wad, void(*func)(WADEntry** entry));
 
+/* Write Wad File */
+void W_Write(Wad *wad, const wchar_t *path);
 #endif

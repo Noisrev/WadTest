@@ -16,32 +16,33 @@ int IsNULL(Wad *wad)
 }
 
 /* free the entry->buffer */
-void _free_entry_buffer(Buffer *buffer)
+void _free_entry_buffer(Buffer **buffer)
 {
     /* The buffer is not NULL? */
-    if (buffer) /* true */
+    if (*buffer) /* true */
     {
-        if (buffer->Cache)
+        if ((*buffer)->Cache)
         {
-            free(buffer->Cache);
+            free((*buffer)->Cache);
+            (*buffer)->Cache = NULL;
         }
         /* free the buffer */
-        free(buffer);
-        buffer = NULL;
+        free(*buffer);
+        *buffer = NULL;
     }
 }
 
 /* free the entry. */
-void _free_entry(WADEntry *entry)
+void _free_entry(WADEntry **entry)
 {
     /* The entry is not NULL*/
-    if (entry) /* true */
+    if (*entry) /* true */
     {
         /* free the buffer */
-        _free_entry_buffer(entry->Buffer);
+        _free_entry_buffer(&((*entry)->Buffer));
         /* free the entry */
-        free(entry);
-        entry = NULL;
+        free(*entry);
+        *entry = NULL;
     }
 }
 
@@ -58,10 +59,10 @@ void *w_malloc(size_t size)
 Wad *CreateWad()
 {
     /* malloc a new Wad */
-    Wad* wad = (Wad *)w_malloc(sizeof(Wad));
+    Wad *wad = (Wad *)w_malloc(sizeof(Wad));
     /* Set the magic */
     wad->Magic[0] = 'R';
-    wad->Magic[0] = 'W';
+    wad->Magic[1] = 'W';
     /* Set the version */
     wad->Major = 3;
     wad->Minor = 1;
@@ -211,7 +212,7 @@ int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size)
         /* Set the old buffer */
         Buffer *oldBuffer = entry->Buffer;
         /* create a new buffer */
-        entry->Buffer = (Buffer*)w_malloc(sizeof(Buffer));
+        entry->Buffer = (Buffer *)w_malloc(sizeof(Buffer));
         /* Uncompressed */
         if (entry->Type == Uncompressed)
         {
@@ -246,7 +247,7 @@ int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size)
             memcpy(entry->Buffer->Cache, buffer, size);
         }
         /* free old buffer */
-        _free_entry_buffer(oldBuffer);
+        _free_entry_buffer(&oldBuffer);
         /* Set the compressed size */
         entry->CompressedSize = entry->Buffer->Size;
         /* Set the uncompressed size */
@@ -347,6 +348,7 @@ Buffer *GetBuffer(Wad *wad, uint64_t hash, int R_Comp)
             entry->Buffer->Size = entry->UncompressedSize;
             /* free the compressBuffer */
             free(compressBuffer);
+            compressBuffer = NULL;
         }
         /* Return */
         return entry->Buffer;
@@ -423,7 +425,7 @@ void RemoveWadEntry(Wad *wad, uint64_t hash)
         /* Count - 1 */
         wad->Count--;
 
-        _free_entry(cur);
+        _free_entry(&cur);
     }
     else
     {
@@ -452,7 +454,7 @@ void RemoveWadEntry(Wad *wad, uint64_t hash)
                 wad->Count--;
 
                 /* free the cur */
-                _free_entry(cur);
+                _free_entry(&cur);
                 /* Return */
                 break;
             }
@@ -477,7 +479,7 @@ void W_Close(Wad **wad)
     *wad = NULL;
 }
 
-void W_ForEach(Wad *wad, void (*func)(WADEntry *entry))
+void W_ForEach(Wad *wad, void (*func)(WADEntry **entry))
 {
     /* The first node */
     WADEntry *entry = wad->Entries;
@@ -485,8 +487,66 @@ void W_ForEach(Wad *wad, void (*func)(WADEntry *entry))
     while (entry)
     {
         /* invoke */
-        (*func)(entry);
+        (*func)(&entry);
         /* to Next */
         entry = entry->Next;
+    }
+}
+
+void W_Write(Wad *wad, const wchar_t *path)
+{
+    FILE *output = _wfopen(path, L"wb+,ccs=UNICODE");
+    if (output)
+    {
+        fwrite(&wad->Magic, 1, 2, output);
+        fwrite(&wad->Major, 1, 1, output);
+        fwrite(&wad->Minor, 1, 1, output);
+
+        fwrite(&wad->Signature, 256, 1, output);
+        fwrite(&wad->Pad, 8, 1, output);
+        fwrite(&wad->Count, 4, 1, output);
+
+        long hashesOffset = ftell(output);
+        int hashesSize = 32 * wad->Count;
+
+        long dataOffset = hashesOffset + hashesSize;
+        fseek(output, dataOffset, SEEK_SET);
+
+        WADEntry *entry = wad->Entries;
+        /* entry is not NULL */
+        while (entry)
+        {
+            if (entry->Buffer == NULL)
+            {
+                GetBuffer(wad, entry->XXHash, R_Compressed);
+            }
+
+            entry->Offset = ftell(output);
+            if (entry->Type == FileRedirection)
+            {
+                fwrite(&entry->Buffer->Size, 4, 1, output);
+            }
+            fwrite(entry->Buffer->Cache, entry->Buffer->Size, 1, output);
+            /* to Next */
+            entry = entry->Next;
+        }
+
+        fseek(output, hashesOffset, SEEK_SET);
+        entry = wad->Entries;
+        while (entry)
+        {
+            fwrite(&entry->XXHash, 8, 1, output);
+            fwrite(&entry->Offset, 4, 1, output);
+            fwrite(&entry->CompressedSize, 4, 1, output);
+            fwrite(&entry->UncompressedSize, 4, 1, output);
+            fwrite(&entry->Type, 1, 1, output);
+            fwrite(&entry->IsDuplicated, 1, 1, output);
+            fwrite(&entry->Pad, 2, 1, output);
+            fwrite(&entry->Checksum, 8, 1, output);
+            /* to Next */
+            entry = entry->Next;
+        }
+        fflush(output);
+        fclose(output);
     }
 }
