@@ -1,5 +1,5 @@
 #include <zlib.h>
-#include <zstd.h>
+#include "zstd.h"
 #include "wad.h"
 
 // The wad is null ?
