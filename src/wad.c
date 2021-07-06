@@ -41,6 +41,7 @@ void _free_entry(WADEntry *entry)
         _free_entry_buffer(entry->Buffer);
         /* free the entry */
         free(entry);
+        entry = NULL;
     }
 }
 
@@ -281,24 +282,6 @@ WADEntry *FindWadEntry(Wad *wad, uint64_t hash)
     return temp;
 }
 
-void W_ForEach(Wad *wad, void (*func)(int index, WADEntry *entry))
-{
-    /* The first node */
-    WADEntry *entry = wad->Entries;
-    /* Index */
-    int index = 0;
-    /* entry is not NULL */
-    while (entry)
-    {
-        /* invoke */
-        (*func)(index, entry);
-        /* to Next */
-        entry = entry->Next;
-        /* Index + 1 */
-        index++;
-    }
-}
-
 Buffer *GetBuffer(Wad *wad, uint64_t hash, int R_Comp)
 {
     if (IsNULL(wad))
@@ -480,5 +463,26 @@ void RemoveWadEntry(Wad *wad, uint64_t hash)
                 cur = cur->Next;
             }
         }
+    }
+}
+
+void W_Close(Wad **wad)
+{
+    W_ForEach(*wad, _free_entry);
+    free(*wad);
+    *wad = NULL;
+}
+
+void W_ForEach(Wad *wad, void (*func)(WADEntry *entry))
+{
+    /* The first node */
+    WADEntry *entry = wad->Entries;
+    /* entry is not NULL */
+    while (entry)
+    {
+        /* invoke */
+        (*func)(entry);
+        /* to Next */
+        entry = entry->Next;
     }
 }

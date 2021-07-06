@@ -23,10 +23,9 @@ char *GetType(EntryType type)
 	}
 }
 
-void PrintWad(int index, WADEntry *entry)
+void PrintWad(WADEntry *entry)
 {
 	printf("===============Start============\n");
-	printf("Index: %d\n", index);
 	printf("XXHash: %lld\n", entry->XXHash);
 	printf("CompressedSize: %u\n", entry->CompressedSize);
 	printf("UncompressedSize: %u\n", entry->UncompressedSize);
@@ -80,6 +79,8 @@ int main()
 		RemoveWadEntry(wad, 2);
 		RemoveWadEntry(wad, 3);
 		RemoveWadEntry(wad, 4);
+
+		W_Close(&wad);
 	}
 	return (0);
 }

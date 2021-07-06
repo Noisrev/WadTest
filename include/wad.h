@@ -94,8 +94,6 @@ int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size);
 // Find the entry that matches the hash.
 WADEntry *FindWadEntry(Wad *wad, uint64_t hash);
 
-/* Foreach in wad entries. */
-void W_ForEach(Wad *wad, void(*func)(int index, WADEntry* entry));
 // Get the content of the buffer for the specified hash.
 Buffer *GetBuffer(Wad *wad, uint64_t hash, int R_Comp);
 
@@ -104,5 +102,11 @@ WADEntry *GetWadEntryWithIndex(Wad *wad, int index);
 
 // Removes all items in the collection that match the hash.
 void RemoveWadEntry(Wad *wad, uint64_t hash);
+
+/* Close the wad */
+void W_Close(Wad **wad);
+
+/* Foreach in wad entries. */
+void W_ForEach(Wad *wad, void(*func)(WADEntry* entry));
 
 #endif
