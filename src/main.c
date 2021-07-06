@@ -1,9 +1,38 @@
 #include "wad.h"
 #include <string.h>
 
+char *GetType(EntryType type)
+{
+	switch (type)
+	{
+		case Uncompressed:
+			return "Uncompressed";
+			break;
+		case GZipCompressed:
+			return "GZipCompressed";
+			break;
+		case ZStandardCompressed:
+			return "ZStandardCompressed";
+			break;
+		case FileRedirection:
+			return "FileRedirection";
+			break;
+
+		default:
+			break;
+	}
+}
+
 void PrintWad(int index, WADEntry *entry)
 {
-	printf("%d\n", index);
+	printf("===============Start============\n");
+	printf("Index: %d\n", index);
+	printf("XXHash: %lld\n", entry->XXHash);
+	printf("CompressedSize: %u\n", entry->CompressedSize);
+	printf("UncompressedSize: %u\n", entry->UncompressedSize);
+	printf("Type: %s\n", GetType(entry->Type));
+	printf("Checksum: %lld\n", entry->Checksum);
+	printf("================End============\n");
 }
 
 int main()
@@ -11,7 +40,7 @@ int main()
 	char *key = "1a65w1tg2s1d3f2a156w1ar3w2d13as";
 	char *value = "____________________________";
 
-	Wad *wad = LoadWadFromPath(L"C:\\Apps\\Tencent\\英雄联盟\\Game\\DATA\\FINAL\\DATA.wad.client");
+	Wad *wad = CreateWad();
 
 	if (wad)
 	{
@@ -19,6 +48,8 @@ int main()
 		AddWadEntry(wad, 2, key, strlen(key), GZipCompressed);
 		AddWadEntry(wad, 3, key, strlen(key), ZStandardCompressed);
 		AddWadEntry(wad, 4, key, strlen(key), FileRedirection);
+
+		W_ForEach(wad, PrintWad);
 
 		ChangeWadEntry(wad, 1, value, strlen(value));
 		ChangeWadEntry(wad, 2, value, strlen(value));
@@ -49,8 +80,6 @@ int main()
 		RemoveWadEntry(wad, 2);
 		RemoveWadEntry(wad, 3);
 		RemoveWadEntry(wad, 4);
-
-		W_ForEach(wad, PrintWad);
 	}
 	return (0);
 }
