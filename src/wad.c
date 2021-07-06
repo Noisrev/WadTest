@@ -55,10 +55,10 @@ Wad *LoadWadFromPath(const wchar_t *path)
     // open file
     wad->Buffer = _wfopen(path, L"rb+,ccs=UNICODE");
 
-    if (wad->Buffer == -1)
+    if (wad->Buffer == NULL)
     {
         /* Open fail */
-        return -1;
+        return NULL;
     }
 
     fread(wad, 1, 268, wad->Buffer);       /* header */
@@ -147,6 +147,8 @@ int AddWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType ty
     node->Next = wad->Entries;
     wad->Entries = node;
     wad->Count++;
+
+    return 1;
 }
 
 int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size)
@@ -272,7 +274,7 @@ Buffer *GetBuffer(Wad *wad, uint64_t hash, int R_Comp)
 
                 if (entry->Type == GZipCompressed)
                 {
-                    uncompress(entry->Buffer->Cache, entry->UncompressedSize, compressBuffer, entry->CompressedSize);
+                    uncompress(entry->Buffer->Cache, &entry->UncompressedSize, compressBuffer, entry->CompressedSize);
                 }
                 else if (entry->Type == ZStandardCompressed)
                 {
@@ -340,7 +342,7 @@ void RemoveWadEntry(Wad *wad, uint64_t hash)
 {
     if (IsNULL(wad))
     {
-        return 1;
+        return;
     }
 
     /* is first ? */

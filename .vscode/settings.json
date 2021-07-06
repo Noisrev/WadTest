@@ -25,7 +25,8 @@
         "system_error": "c",
         "typeinfo": "c",
         "utility": "c",
-        "xxhash.h": "c"
+        "xxhash.h": "c",
+        "cstdint": "c"
     },
     "C_Cpp.dimInactiveRegions": true
 }
