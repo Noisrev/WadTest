@@ -72,7 +72,6 @@ $(OUTPUT):
 
 $(MAIN): $(OBJECTS) 
 	$(CC) $(CFLAGS) $(INCLUDES) -o $(OUTPUTMAIN) $(OBJECTS) $(LFLAGS) $(LIBS) -lzstd -lz
-	@copy lib/libzstd.dll output
 
 # this is a suffix replacement rule for building .o's from .c's
 # it uses automatic variables $<: the name of the prerequisite of
