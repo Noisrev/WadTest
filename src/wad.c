@@ -1,12 +1,6 @@
-#include "wad.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <zlib.h>
 #include <zstd.h>
+#include "wad.h"
 
 // The wad is null ?
 int IsNULL(Wad *wad)
@@ -20,18 +14,29 @@ int IsNULL(Wad *wad)
     return 0;
 }
 
+/* free the entry->buffer */
+void _free_entry_buffer(Buffer *buffer)
+{
+    /* The buffer is not NULL? */
+    if (buffer) /* true */
+    {
+        if (buffer->Cache)
+        {
+            free(buffer->Cache);
+        }
+        /* free the buffer */
+        free(buffer);
+        buffer = NULL;
+    }
+}
 /* free the entry. */
 void _free_entry(WADEntry *entry)
 {
     /* The entry is not NULL*/
     if (entry) /* true */
     {
-        /* The buffer is not NULL? */
-        if (entry->Buffer) /* true */
-        {
-            /* free the buffer */
-            free(entry->Buffer);
-        }
+        /* free the buffer */
+        _free_entry_buffer(entry->Buffer);
         /* free the entry */
         free(entry);
     }
@@ -58,12 +63,16 @@ Wad *LoadWadFromPath(const wchar_t *path)
     for (int i = 0; i < wad->Count; i++)
     {
         WADEntry *node = malloc(sizeof(WADEntry));
-        /* Set the type */
         memset(&node->Type, 0, sizeof(node->Type)); // The enum is int32 ?
 
-        /* Eead entry header*/
-        fread(node, 32, 1, wad->Buffer);
-
+        fread(&node->XXHash, 8, 1, wad->Buffer);
+        fread(&node->Offset, 4, 1, wad->Buffer);
+        fread(&node->CompressedSize, 4, 1, wad->Buffer);
+        fread(&node->UncompressedSize, 4, 1, wad->Buffer);
+        fread(&node->Type, 1, 1, wad->Buffer);
+        fread(&node->IsDuplicated, 1, 1, wad->Buffer);
+        fread(&node->Pad, 2, 1, wad->Buffer);
+        fread(&node->Checksum, 8, 1, wad->Buffer);
         /* Set buffer */
         node->Buffer = NULL;
         /* Set to the header node */
@@ -74,34 +83,64 @@ Wad *LoadWadFromPath(const wchar_t *path)
 }
 int AddWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType type)
 {
-    if (IsNULL(wad))
+    /* wad is NULL ? */
+    if (IsNULL(wad)) /* true */
     {
+        /* */
         return -1;
     }
+    /* Exist ? */
     if (FindWadEntry(wad, hash))
     {
+        /* Return */
         return 0;
     }
-    
+
     WADEntry *node = malloc(sizeof(WADEntry));
+    node->Buffer = malloc(sizeof(Buffer));
     node->XXHash = hash;
+    node->Type = type;
+    node->UncompressedSize = size;
 
     if (type == Uncompressed)
     {
-        // Do something...
-    }
-    else if (type == GZipCompressed)
-    {
-        // Do something...
-    }
-    else if (type == ZStandardCompressed)
-    {
-        // Do something...
+        node->Buffer->Size = size;
+        node->CompressedSize = size;
+        node->Buffer->Cache = malloc(size);
+        memcpy(node->Buffer->Cache, buffer, size);
     }
     else
     {
-        // Do something...
+        size_t dSize = 0;
+        void *dBuff = NULL;
+        if (type == GZipCompressed)
+        {
+            dSize = compressBound(size);
+            dBuff = malloc(dSize);
+
+            compress(dBuff, &dSize, buffer, size);
+        }
+        else if (type == ZStandardCompressed)
+        {
+            dSize = ZSTD_compressBound(size);
+            dBuff = malloc(dSize);
+
+            ZSTD_compress(dBuff, dSize, buffer, size, 23);
+        }
+        else
+        {
+            dSize = size;
+            dBuff = malloc(dSize);
+            memcpy(dBuff, buffer, size);
+        }
+        node->Checksum = XXH_INLINE_XXH3_64bits(dBuff, dSize);
+        node->CompressedSize = dSize;
+        node->Buffer->Cache = dBuff;
+        node->Buffer->Size = dSize;
     }
+    node->Next = wad->Entries;
+    wad->Entries = node;
+    wad->Count++;
 }
 
 int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size)
@@ -113,7 +152,41 @@ int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size)
     WADEntry *entry;
     if ((entry = FindWadEntry(wad, hash)))
     {
-        // Do something...
+        Buffer *oldBuffer = entry->Buffer;
+        entry->Buffer = malloc(sizeof(Buffer));
+        if (entry->Type == Uncompressed)
+        {
+            entry->Buffer->Cache = malloc(size);
+            entry->Buffer->Size = size;
+            memcpy(entry->Buffer->Cache, buffer, size);
+        }
+        else if (entry->Type == GZipCompressed)
+        {
+            entry->Buffer->Size = compressBound(size);
+            entry->Buffer->Cache = malloc(entry->Buffer->Size);
+
+            compress(entry->Buffer->Cache, &entry->Buffer->Size, buffer, size);
+        }
+        else if (entry->Type == ZStandardCompressed)
+        {
+            entry->Buffer->Size = ZSTD_compressBound(size);
+            entry->Buffer->Cache = malloc(entry->Buffer->Size);
+
+            ZSTD_compress(entry->Buffer->Cache, entry->Buffer->Size, buffer, size, 23);
+        }
+        else
+        {
+            entry->Buffer->Size = size;
+            entry->Buffer->Cache = malloc(entry->Buffer->Size);
+            memcpy(entry->Buffer->Cache, buffer, size);
+        }
+        _free_entry_buffer(oldBuffer);
+
+        entry->CompressedSize = entry->Buffer->Size;
+        entry->UncompressedSize = size;
+
+        entry->Checksum = XXH_INLINE_XXH3_64bits(entry->Buffer->Cache, entry->Buffer->Size);
+
         return 1;
     }
     else
@@ -141,6 +214,18 @@ WADEntry *FindWadEntry(Wad *wad, uint64_t hash)
     return temp;
 }
 
+void W_ForEach(Wad *wad, void(*func)(int index, WADEntry* entry))
+{
+    WADEntry *entry = wad->Entries;
+    int index = 0;
+    while(entry)
+    {
+        (*func)(index, wad->Entries);
+        entry = entry->Next;
+        index++;
+    }
+}
+
 Buffer *GetBuffer(Wad *wad, uint64_t hash, int R_Comp)
 {
     if (IsNULL(wad))
@@ -151,80 +236,51 @@ Buffer *GetBuffer(Wad *wad, uint64_t hash, int R_Comp)
     /* Find the entry */
     if ((entry = FindWadEntry(wad, hash)))
     {
-        Buffer *buff = malloc(sizeof(Buffer));
+        /* Buffer is not null ? */
+        if (entry->Buffer) /* true */
+        {
+            /* Return */
+            return entry->Buffer;
+        }
+
+        entry->Buffer = malloc(sizeof(Buffer));
         /* malloc */
         void *compressBuffer = malloc(entry->CompressedSize);
-        
+
         fseek(wad->Buffer, entry->Offset, SEEK_SET);
-        fread(compressBuffer, entry->CompressedSize, 1, wad->Buffer);
+        fread(compressBuffer, 1, entry->CompressedSize, wad->Buffer);
         if (R_Comp) /* compressed */
         {
-            buff->Cache = compressBuffer;
-            buff->Size = entry->CompressedSize;
+            entry->Buffer->Cache = compressBuffer;
+            entry->Buffer->Size = entry->CompressedSize;
         }
         else
         {
             if (entry->Type == Uncompressed)
             {
-                buff->Cache = compressBuffer;
-                buff->Size = entry->CompressedSize;
-            }
-            else if (entry->Type == GZipCompressed)
-            {
-                void *dstBuff = malloc(entry->UncompressedSize);
-                z_stream z = {0};
-
-                z.next_in = compressBuffer;
-                z.avail_in = entry->CompressedSize;
-                z.next_out = dstBuff;
-                z.avail_out = entry->UncompressedSize;
-
-                if (inflateInit(&z) != Z_OK)
-                {
-                    printf("inflateInit failed!\n");
-                    return -1;
-                }
-
-                if (inflate(&z, Z_NO_FLUSH) != Z_STREAM_END)
-                {
-                    printf("inflate Z_NO_FLUSH failed!\n");
-                    return -1;
-                }
-
-                if (inflate(&z, Z_FINISH) != Z_STREAM_END)
-                {
-                    printf("inflate Z_FINISH failed!\n");
-                    return -1;
-                }
-
-                if (inflateEnd(&z) != Z_OK)
-                {
-                    printf("inflateEnd failed!\n");
-                    return -1;
-                }
-
-                buff->Cache = dstBuff;
-                buff->Size = entry->UncompressedSize;
-
-                free(compressBuffer);
-            }
-            else if (entry->Type == ZStandardCompressed)
-            {
-                buff->Cache = malloc(entry->UncompressedSize);
-                buff->Size = entry->UncompressedSize;
-                
-                size_t dSize = ZSTD_decompress(buff->Cache, buff->Size, compressBuffer, entry->CompressedSize);
-
-
-                free(compressBuffer);
+                entry->Buffer->Cache = compressBuffer;
             }
             else
             {
-                buff->Cache = NULL;
-                buff->Size = 0;
+                entry->Buffer->Cache = malloc(entry->UncompressedSize);
+
+                if (entry->Type == GZipCompressed)
+                {
+                    uncompress(entry->Buffer->Cache, entry->UncompressedSize, compressBuffer, entry->CompressedSize);
+                }
+                else if (entry->Type == ZStandardCompressed)
+                {
+                    ZSTD_decompress(entry->Buffer->Cache, entry->UncompressedSize, compressBuffer, entry->CompressedSize);
+                }
+                else
+                {
+                    memcpy(entry->Buffer->Cache, compressBuffer + 4, entry->CompressedSize - 4);
+                }
             }
+            entry->Buffer->Size = entry->UncompressedSize;
+            free(compressBuffer);
         }
-        return buff;
+        return entry->Buffer;
     }
     return NULL;
 }

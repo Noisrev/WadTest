@@ -24,6 +24,8 @@
         "stdexcept": "c",
         "system_error": "c",
         "typeinfo": "c",
-        "utility": "c"
-    }
+        "utility": "c",
+        "xxhash.h": "c"
+    },
+    "C_Cpp.dimInactiveRegions": true
 }

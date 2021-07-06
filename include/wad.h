@@ -1,6 +1,8 @@
 #ifndef WAD_H
 #define WAD_H
 
+#define XXH_INLINE_ALL
+
 /* Compressed type */
 #define R_Compressed 1
 /* Uncompressed type */
@@ -8,6 +10,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include "xxhash.h"
 /* Wad entry type*/
 typedef enum W_Type
 {
@@ -50,7 +53,7 @@ typedef struct W_Entry
     /* check sum*/
     uint64_t Checksum;
     /* Data */
-    void *Buffer;
+    Buffer *Buffer;
     /* Next entry */
     struct W_Entry *Next;
 } WADEntry;
@@ -88,6 +91,8 @@ int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size);
 // Find the entry that matches the hash.
 WADEntry *FindWadEntry(Wad *wad, uint64_t hash);
 
+/* Foreach in wad entries. */
+void W_ForEach(Wad *wad, void(*func)(int index, WADEntry* entry));
 // Get the content of the buffer for the specified hash.
 Buffer *GetBuffer(Wad *wad, uint64_t hash, int R_Comp);
 
