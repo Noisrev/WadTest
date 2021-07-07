@@ -9,7 +9,6 @@
 #define R_Uncmpressed 0
 
 #include <stdio.h>
-#include <stdint.h>
 #include "xxhash.h"
 /* Wad entry type*/
 typedef enum W_Type
@@ -80,28 +79,28 @@ typedef struct _WADFile
 } Wad;
 
 // Create an empty WAD
-Wad *CreateWad();
+Wad *W_Create();
 
 // Load the WAD from the path.
-Wad *LoadWadFromPath(const wchar_t *path);
+Wad *W_Open(const wchar_t *path);
 
 // Add a new entry to WAD Entries.
-int AddWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType type);
+int W_Add(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType type);
 
 // Change the data from the entry that matches the hash.
-int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size);
+int W_Change(Wad *wad, uint64_t hash, void *buffer, size_t size);
 
 // Find the entry that matches the hash.
-WADEntry *FindWadEntry(Wad *wad, uint64_t hash);
+WADEntry *W_Find(Wad *wad, uint64_t hash);
 
 // Get the content of the buffer for the specified hash.
-Buffer *GetBuffer(Wad *wad, uint64_t hash, int R_Comp);
+Buffer *W_GetBuffer(Wad *wad, uint64_t hash, int R_Comp);
 
 // Get the entry using the index.
-WADEntry *GetWadEntryWithIndex(Wad *wad, int index);
+WADEntry *W_GetEntry(Wad *wad, int index);
 
 // Removes all items in the collection that match the hash.
-void RemoveWadEntry(Wad *wad, uint64_t hash);
+void W_Remove(Wad *wad, uint64_t hash);
 
 /* Close the wad */
 void W_Close(Wad **wad);

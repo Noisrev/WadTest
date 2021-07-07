@@ -58,7 +58,7 @@ void *w_malloc(size_t size)
     return buffer;
 }
 
-Wad *CreateWad()
+Wad *W_Create()
 {
     /* malloc a new Wad */
     Wad *wad = (Wad *)w_malloc(sizeof(Wad));
@@ -70,10 +70,10 @@ Wad *CreateWad()
     wad->Minor = 1;
     return wad;
 }
-Wad *LoadWadFromPath(const wchar_t *path)
+Wad *W_Open(const wchar_t *path)
 {
     /* malloc */
-    Wad *wad = CreateWad();
+    Wad *wad = W_Create();
     // open file
     wad->Buffer = _wfopen(path, L"rb+,ccs=UNICODE");
 
@@ -118,7 +118,7 @@ Wad *LoadWadFromPath(const wchar_t *path)
     /* Return */
     return wad;
 }
-int AddWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType type)
+int W_Add(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType type)
 {
     /* wad is NULL ? */
     if (IsNULL(wad)) /* true */
@@ -127,7 +127,7 @@ int AddWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType ty
         return -1;
     }
     /* Exist ? */
-    if (FindWadEntry(wad, hash))
+    if (W_Find(wad, hash))
     {
         /* Return */
         return 0;
@@ -211,7 +211,7 @@ int AddWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType ty
     return 1;
 }
 
-int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size)
+int W_Change(Wad *wad, uint64_t hash, void *buffer, size_t size)
 {
     if (IsNULL(wad))
     {
@@ -220,7 +220,7 @@ int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size)
     /* node */
     WADEntry *entry;
     /* Exist ? */
-    if ((entry = FindWadEntry(wad, hash)))
+    if ((entry = W_Find(wad, hash)))
     {
         /* Set the old buffer */
         Buffer *oldBuffer = entry->Buffer;
@@ -277,7 +277,7 @@ int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size)
     }
 }
 
-WADEntry *FindWadEntry(Wad *wad, uint64_t hash)
+WADEntry *W_Find(Wad *wad, uint64_t hash)
 {
     if (IsNULL(wad))
     {
@@ -296,7 +296,7 @@ WADEntry *FindWadEntry(Wad *wad, uint64_t hash)
     return temp;
 }
 
-Buffer *GetBuffer(Wad *wad, uint64_t hash, int R_Comp)
+Buffer *W_GetBuffer(Wad *wad, uint64_t hash, int R_Comp)
 {
     if (IsNULL(wad))
     {
@@ -304,7 +304,7 @@ Buffer *GetBuffer(Wad *wad, uint64_t hash, int R_Comp)
     }
     WADEntry *entry;
     /* Find the entry */
-    if ((entry = FindWadEntry(wad, hash)))
+    if ((entry = W_Find(wad, hash)))
     {
         /* Buffer is not null ? */
         if (entry->Buffer) /* true */
@@ -368,7 +368,7 @@ Buffer *GetBuffer(Wad *wad, uint64_t hash, int R_Comp)
     return NULL;
 }
 
-WADEntry *GetWadEntryWithIndex(Wad *wad, int index)
+WADEntry *W_GetEntry(Wad *wad, int index)
 {
     if (IsNULL(wad) || index < 0)
     {
@@ -414,7 +414,7 @@ WADEntry *GetWadEntryWithIndex(Wad *wad, int index)
     return node;
 }
 
-void RemoveWadEntry(Wad *wad, uint64_t hash)
+void W_Remove(Wad *wad, uint64_t hash)
 {
     if (IsNULL(wad))
     {
@@ -550,7 +550,7 @@ void W_Write(Wad *wad, const wchar_t *path)
             if (entry->Buffer == NULL)
             {
                 /* Get the buffer */
-                GetBuffer(wad, entry->XXHash, R_Compressed);
+                W_GetBuffer(wad, entry->XXHash, R_Compressed);
             }
 
             /* Set the offset */
