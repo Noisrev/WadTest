@@ -181,7 +181,7 @@ int AddWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType ty
             dBuff = w_malloc(dSize);
 
             /* compress */
-            ZSTD_compress(dBuff, dSize, buffer, size, 23);
+            ZSTD_compress(dBuff, dSize, buffer, size, 3);
         } /* link */
         else
         {
@@ -249,7 +249,7 @@ int ChangeWadEntry(Wad *wad, uint64_t hash, void *buffer, size_t size)
             entry->Buffer->Size = ZSTD_compressBound(size);
             entry->Buffer->Cache = w_malloc(entry->Buffer->Size);
             /* compress */
-            ZSTD_compress(entry->Buffer->Cache, entry->Buffer->Size, buffer, size, 23);
+            ZSTD_compress(entry->Buffer->Cache, entry->Buffer->Size, buffer, size, 3);
         } /* Link */
         else
         {
