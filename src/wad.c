@@ -1,3 +1,5 @@
+/* Author: Noisrev */
+#include <inttypes.h>
 #include <zlib.h>
 #include "zstd.h"
 #include "wad.h"
@@ -16,35 +18,30 @@ int IsNULL(Wad *wad)
 }
 
 /* free the entry->buffer */
-void _free_entry_buffer(Buffer **buffer)
+void _free_entry_buffer(Buffer *buffer)
 {
     /* The buffer is not NULL? */
-    if (*buffer) /* true */
+    if (buffer) /* true */
     {
-        /* The cache is not null ? */
-        if ((*buffer)->Cache)
-        {
-            /* free the cache */
-            free((*buffer)->Cache);
-            (*buffer)->Cache = NULL;
-        }
+        /* free the cData */
+        free(buffer->cData);
+        /* free the dData */
+        free(buffer->dData);
         /* free the buffer */
-        free(*buffer);
-        *buffer = NULL;
+        free(buffer);
     }
 }
 
 /* free the entry. */
-void _free_entry(WADEntry **entry)
+void _free_entry(WADEntry *entry)
 {
     /* The entry is not NULL*/
-    if (*entry) /* true */
+    if (entry) /* true */
     {
         /* free the buffer */
-        _free_entry_buffer(&((*entry)->Buffer));
+        _free_entry_buffer(entry->Buffer);
         /* free the entry */
-        free(*entry);
-        *entry = NULL;
+        free(entry);
     }
 }
 
@@ -77,28 +74,40 @@ Wad *W_Open(const wchar_t *path)
     // open file
     wad->Buffer = _wfopen(path, L"rb+,ccs=UNICODE");
 
+    /* The buffer is NULL ? */
     if (wad->Buffer == NULL)
     {
         /* Open fail */
         return NULL;
     }
     /* Read the header */
-    fread(wad, 1, 268, wad->Buffer);
+    if ((fread(wad, 1, 268, wad->Buffer) < 268))
+    {
+        /* print error */
+        printf("W_Open: \"Header buffer is too small: %ld\"\n", ftell(wad->Buffer));
+        /* Close the wad */
+        W_Close(&wad);
+        /* Return */
+        return NULL;
+    }
     /* Check magic code */
     if (wad->Magic[0] != 'R' && wad->Magic[1] != 'W')
     {
         /* print error */
-        printf("Invalid magic code: %s \n", wad->Magic);
+        printf("W_Open: \"Invalid magic code: %c%c\"\n", wad->Magic[0], wad->Magic[1]);
         /* Close the wad */
         W_Close(&wad);
+        /* Return */
         return NULL;
     }
+    /* Is version 3.1? */
     if (wad->Major != 3 && wad->Minor != 1)
     {
         /* print */
-        printf("Invalid wad version : %d.%d", wad->Major, wad->Minor);
+        printf("W_Open: \"Invalid wad version : %d.%d\"", wad->Major, wad->Minor);
         /* Close the wad */
         W_Close(&wad);
+        /* Return */
         return NULL;
     }
     /* Read the count*/
@@ -106,6 +115,7 @@ Wad *W_Open(const wchar_t *path)
 
     /* Set the first is NULL */
     wad->Entries = NULL;
+    /* Loop. Read header properties */
     for (int i = 0; i < wad->Count; i++)
     {
         /* malloc a new node */
@@ -126,10 +136,9 @@ Wad *W_Open(const wchar_t *path)
         fread(&node->Pad, 2, 1, wad->Buffer);
         /* Read the checksum */
         fread(&node->Checksum, 8, 1, wad->Buffer);
-        /* Set buffer */
-        node->Buffer = NULL;
         /* Set to the header node */
         node->Next = wad->Entries;
+        /* to Next */
         wad->Entries = node;
     }
     /* Return */
@@ -157,28 +166,39 @@ int W_Add(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType type)
     node->XXHash = hash;
     /* Set the type */
     node->Type = type;
-    /* Set the uncompressed size*/
-    node->UncompressedSize = size;
     /* Set the is duplicated */
     node->IsDuplicated = 0;
+
+    /* Set the uncompressed size*/
+    node->UncompressedSize = size;
+    /* Set the dSize */
+    node->Buffer->dSize = size;
+    /* Set the cache */
+    node->Buffer->dData = w_malloc(size);
+    /* Copy the buffer to the cache */
+    memcpy(node->Buffer->dData, buffer, size);
 
     /* uncompressed */
     if (type == Uncompressed)
     {
-        /* Set the buffer size */
-        node->Buffer->Size = size;
+        /* Set the cSize */
+        node->Buffer->cSize = size;
         /* Set the compressed size */
         node->CompressedSize = size;
         /* Set the cache */
-        node->Buffer->Cache = w_malloc(size);
+        node->Buffer->cData = w_malloc(size);
         /* Copy the buffer to the cache */
-        memcpy(node->Buffer->Cache, buffer, size);
+        memcpy(node->Buffer->cData, buffer, size);
     }
     else /* compressed */
     {
         /* destination */
+
+        /* size */
         size_t dSize = 0;
-        void const *dBuff = NULL;
+        /* buffer */
+        void *dBuff = NULL;
+
         /* gzip */
         if (type == GZipCompressed)
         {
@@ -191,11 +211,11 @@ int W_Add(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType type)
             if (compress(dBuff, &dSize, buffer, size) != Z_OK)
             {
                 /* print error */
-                printf("compress failed : %lld\n", hash);
-                /* free the buffer */
+                printf("W_Add: \"compress failed : %" PRIu64 "\"\n", hash);
+                /* free the dBuff */
                 free(dBuff);
                 /* free the entry */
-                _free_entry(&node);
+                _free_entry(node);
                 /* Return */
                 return -1;
             }
@@ -213,23 +233,26 @@ int W_Add(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType type)
         else
         {
             /* Set the dSize */
-            dSize = size;
+            dSize = size + 4;
             /* Set the dBuff */
             dBuff = w_malloc(dSize);
             /* Copy the buffer to the dBuff */
-            memcpy(dBuff, buffer, size);
+            memcpy(dBuff, &size, 4);
+            /* Copy the buffer to the dBuff */
+            memcpy(dBuff + 4, buffer, size);
         }
         /* Set the compressed size */
         node->CompressedSize = dSize;
         /* Set the cache */
-        node->Buffer->Cache = dBuff;
+        node->Buffer->cData = dBuff;
         /* Set the size */
-        node->Buffer->Size = dSize;
+        node->Buffer->cSize = dSize;
     }
     /* Set the checksum */
-    node->Checksum = XXH_INLINE_XXH3_64bits(node->Buffer->Cache, node->Buffer->Size);
+    node->Checksum = XXH_INLINE_XXH3_64bits(node->Buffer->cData, node->Buffer->cSize);
     /* node->head */
     node->Next = wad->Entries;
+    /* Set to first */
     wad->Entries = node;
     /* count + 1 */
     wad->Count++;
@@ -253,28 +276,38 @@ int W_Change(Wad *wad, uint64_t hash, void *buffer, size_t size)
         Buffer *oldBuffer = entry->Buffer;
         /* create a new buffer */
         entry->Buffer = (Buffer *)w_malloc(sizeof(Buffer));
+
+        /* Set the dSize */
+        entry->Buffer->dSize = size;
+        /* Set the dData */
+        entry->Buffer->dData = w_malloc(size);
+        /* copy the buffer to dData */
+        memcpy(entry->Buffer->dData, buffer, size);
+
         /* Uncompressed */
         if (entry->Type == Uncompressed)
         {
-            /* Set the buffer */
-            entry->Buffer->Cache = w_malloc(size);
-            entry->Buffer->Size = size;
+            /* Set the cData */
+            entry->Buffer->cData = w_malloc(size);
+            /* Set the cSize*/
+            entry->Buffer->cSize = size;
             /* Copy the buffer */
-            memcpy(entry->Buffer->Cache, buffer, size);
+            memcpy(entry->Buffer->cData, buffer, size);
         } /* Gzip */
         else if (entry->Type == GZipCompressed)
         {
-            /* Set the buffer */
-            entry->Buffer->Size = compressBound(size);
-            entry->Buffer->Cache = w_malloc(entry->Buffer->Size);
+            /* Set the cSize */
+            entry->Buffer->cSize = compressBound(size);
+            /* malloc the cData */
+            entry->Buffer->cData = w_malloc(entry->Buffer->cSize);
             /* compress */
-            if (compress(entry->Buffer->Cache, &entry->Buffer->Size, buffer, size))
+            if (compress(entry->Buffer->cData, &entry->Buffer->cSize, buffer, size))
             {
                 /* print error */
-                printf("compress failed : %lld, on change method.\n", hash);
+                printf("W_Change: \"compress failed : %" PRIu64 "\"\n", hash);
                 /* free the buffer */
-                _free_entry_buffer(&entry->Buffer);
-                /* to back */
+                free(entry->Buffer);
+                /* failed. set to oldBuffer */
                 entry->Buffer = oldBuffer;
                 /* Return */
                 return -1;
@@ -282,28 +315,34 @@ int W_Change(Wad *wad, uint64_t hash, void *buffer, size_t size)
         } /* Zstd */
         else if (entry->Type == ZStandardCompressed)
         {
-            /* Set the buffer */
-            entry->Buffer->Size = ZSTD_compressBound(size);
-            entry->Buffer->Cache = w_malloc(entry->Buffer->Size);
+            /* Set the cSize */
+            entry->Buffer->cSize = ZSTD_compressBound(size);
+            /* malloc the cData */
+            entry->Buffer->cData = w_malloc(entry->Buffer->cSize);
             /* compress */
-            ZSTD_compress(entry->Buffer->Cache, entry->Buffer->Size, buffer, size, 3);
+            ZSTD_compress(entry->Buffer->cData, entry->Buffer->cSize, buffer, size, 3);
         } /* Link */
         else
         {
-            /* Set the buffer */
-            entry->Buffer->Size = size;
-            entry->Buffer->Cache = w_malloc(entry->Buffer->Size);
-            /* Copy the buffer*/
-            memcpy(entry->Buffer->Cache, buffer, size);
+            /* Set the cSize */
+            entry->Buffer->cSize = size + 4; /* (int) 4 bytes + data size */
+            /* malloc the cData */
+            entry->Buffer->cData = w_malloc(size + 4);
+            /* Copy the buffer to the dBuff */
+            memcpy(entry->Buffer->cData, &size, 4); /* Set the Length, 4 bytes */
+            /* Copy the buffer to the cData */
+            memcpy(entry->Buffer->cData + 4, buffer, size); /* Set the data */
         }
-        /* free old buffer */
-        _free_entry_buffer(&oldBuffer);
+        /* free the old buffer */
+        free(oldBuffer);
+        /* Set to null */
+        oldBuffer = NULL;
         /* Set the compressed size */
-        entry->CompressedSize = entry->Buffer->Size;
+        entry->CompressedSize = entry->Buffer->cSize;
         /* Set the uncompressed size */
         entry->UncompressedSize = size;
         /* Set the checksum */
-        entry->Checksum = XXH_INLINE_XXH3_64bits(entry->Buffer->Cache, entry->Buffer->Size);
+        entry->Checksum = XXH_INLINE_XXH3_64bits(entry->Buffer->cData, entry->Buffer->cSize);
         /* Return true */
         return 1;
     }
@@ -333,7 +372,26 @@ WADEntry *W_Find(Wad *wad, uint64_t hash)
     return temp;
 }
 
-Buffer *W_GetBuffer(Wad *wad, uint64_t hash, int R_Comp)
+WADEntry *W_Find_Chceksum(Wad *wad, uint64_t checksum)
+{
+    if (IsNULL(wad))
+    {
+        return NULL;
+    }
+    /* Set the Head Node */
+    WADEntry *temp = wad->Entries;
+    /* Temp is not null and the hash does not match */
+    while (temp && temp->Checksum != checksum)
+    {
+        /* to Next */
+        /* if next is null. temp = next, and return temp */
+        temp = temp->Next;
+    }
+    /* Return */
+    return temp;
+}
+
+Buffer *W_GetBuffer(Wad *wad, uint64_t hash)
 {
     if (IsNULL(wad))
     {
@@ -343,75 +401,67 @@ Buffer *W_GetBuffer(Wad *wad, uint64_t hash, int R_Comp)
     /* Find the entry */
     if ((entry = W_Find(wad, hash)))
     {
-        /* Buffer is not null ? */
-        if (entry->Buffer) /* true */
+        /* The buffer is not NULL ? */
+        if (entry->Buffer)
         {
-            /* Return */
+            /* Return the buffer */
             return entry->Buffer;
         }
         /* Set the buffer*/
-        entry->Buffer = malloc(sizeof(Buffer));
-        /* malloc */
-        void *compressBuffer = w_malloc(entry->CompressedSize);
+        entry->Buffer = w_malloc(sizeof(Buffer));
+        /* Set the cSize */
+        entry->Buffer->cSize = entry->CompressedSize;
+        /* Set the cData */
+        entry->Buffer->cData = w_malloc(entry->CompressedSize);
+        /* Set the dSize */
+        entry->Buffer->dSize = entry->UncompressedSize;
+        /* Set the dData */
+        entry->Buffer->dData = w_malloc(entry->UncompressedSize);
+
         /* Seek */
         fseek(wad->Buffer, entry->Offset, SEEK_SET);
-        /* Read buffer */
-        fread(compressBuffer, 1, entry->CompressedSize, wad->Buffer);
-        /* Data Type */
-        if (R_Comp) /* compressed */
+        /* Read data to cData */
+        fread(entry->Buffer->cData, entry->CompressedSize, 1, wad->Buffer);
+
+        /* uncompressed */
+        if (entry->Type == Uncompressed)
         {
-            /* Set the cache */
-            entry->Buffer->Cache = compressBuffer;
-            /* Set the size*/
-            entry->Buffer->Size = entry->CompressedSize;
-        } /* uncompressed */
+            /* Set the dData */
+            memcpy(entry->Buffer->dData, entry->Buffer->cData, entry->CompressedSize);
+        }
         else
         {
-            /* uncompressed */
-            if (entry->Type == Uncompressed)
+            /* gzip */
+            if (entry->Type == GZipCompressed)
             {
-                /* Set the cache */
-                entry->Buffer->Cache = compressBuffer;
-            }
+                /* gzip decompress */
+                if (uncompress(entry->Buffer->dData, &entry->UncompressedSize, entry->Buffer->cData, entry->CompressedSize) != Z_OK)
+                {
+                    /* print erro */
+                    printf("W_GetBuffer: \"uncompress failed : %" PRIu64 "\"\n");
+                    /* free the buffer */
+                    _free_entry_buffer(entry->Buffer);
+                    /* Return */
+                    return NULL;
+                }
+            } /* zstd */
+            else if (entry->Type == ZStandardCompressed)
+            {
+                /* zstd decompress */
+                ZSTD_decompress(entry->Buffer->dData, entry->UncompressedSize, entry->Buffer->cData, entry->CompressedSize);
+            } /* link */
             else
             {
-                /* malloc a new cache */
-                entry->Buffer->Cache = w_malloc(entry->UncompressedSize);
-
-                if (entry->Type == GZipCompressed)
-                {
-                    /* gzip decompress */
-                    if (uncompress(entry->Buffer->Cache, &entry->UncompressedSize, compressBuffer, entry->CompressedSize) != Z_OK)
-                    {
-                        /* print erro */
-		                printf("W_GetBuffer: \"uncompress failed : %lld\"\n");
-                        /* free the buffer */
-                        _free_entry_buffer(&entry->Buffer);
-                        /* free data */
-                        free(compressBuffer);
-                        /* Return */
-                        return NULL;
-                    }
-                }
-                else if (entry->Type == ZStandardCompressed)
-                {
-                    /* zstd decompress */
-                    ZSTD_decompress(entry->Buffer->Cache, entry->UncompressedSize, compressBuffer, entry->CompressedSize);
-                }
-                else
-                {
-                    /* link ? */
-                    memcpy(entry->Buffer->Cache, compressBuffer + 4, entry->CompressedSize - 4);
-                }
+                /* copy the cData to dData. --- cData = (int) length + data */
+                memcpy(entry->Buffer->dData, entry->Buffer->cData + 4, entry->CompressedSize - 4);
+                /* 417. It is already set to full size */
+                entry->Buffer->dSize -= 4;
             }
-            /* Set the size */
-            entry->Buffer->Size = entry->UncompressedSize;
-            /* free the compressBuffer */
-            free(compressBuffer);
         }
         /* Return */
         return entry->Buffer;
     }
+    /* Return */
     return NULL;
 }
 
@@ -484,7 +534,7 @@ void W_Remove(Wad *wad, uint64_t hash)
         /* Count - 1 */
         wad->Count--;
 
-        _free_entry(&cur);
+        _free_entry(cur);
     }
     else
     {
@@ -513,7 +563,7 @@ void W_Remove(Wad *wad, uint64_t hash)
                 wad->Count--;
 
                 /* free the cur */
-                _free_entry(&cur);
+                _free_entry(cur);
                 /* Return */
                 break;
             }
@@ -529,7 +579,7 @@ void W_Remove(Wad *wad, uint64_t hash)
 
 void W_Close(Wad **wad)
 {
-    /* free entries */
+    /* invoke */
     W_ForEach(*wad, _free_entry);
     /* The buffer is not null ? */
     if ((*(wad))->Buffer)
@@ -542,19 +592,35 @@ void W_Close(Wad **wad)
     *wad = NULL;
 }
 
-void W_ForEach(Wad *wad, void (*func)(WADEntry **entry))
+void W_ForEach(Wad *wad, void (*func)(WADEntry *entry))
 {
     /* The first node */
-    WADEntry *entry = wad->Entries;
+    WADEntry *node = wad->Entries;
     /* entry is not NULL */
-    while (entry)
+    while (node)
     {
-        WADEntry *next = entry->Next;
+        /* Set the next */
+        WADEntry *next = (node)->Next;
         /* invoke */
-        (*func)(&entry);
+        (*func)(node);
         /* to Next */
-        
-        entry = next;
+        node = next;
+    }
+}
+
+void W_WForEach(Wad *wad, void (*func)(Wad *wad, WADEntry *entry))
+{
+    /* The first node */
+    WADEntry *node = wad->Entries;
+    /* entry is not NULL */
+    while (node)
+    {
+        /* Set the next */
+        WADEntry *next = (node)->Next;
+        /* invoke */
+        (*func)(wad, node);
+        /* to Next */
+        node = next;
     }
 }
 
@@ -588,31 +654,75 @@ void W_Write(Wad *wad, const wchar_t *path)
         /* go to the data offset */
         fseek(output, dataOffset, SEEK_SET);
 
+        /* Checksum list */
+        uint64_t *checksums = w_malloc(sizeof(uint64_t) * wad->Count);
+        /* offset list */
+        uint32_t *offsets = w_malloc(sizeof(uint32_t) * wad->Count);
+
+        /* The index */
+        int index = 0;
+
         /* Set to first */
         WADEntry *entry = wad->Entries;
         /* entry is not NULL */
         while (entry)
         {
-            /* if buffer is null */
-            if (entry->Buffer == NULL)
-            {
-                /* Get the buffer */
-                W_GetBuffer(wad, entry->XXHash, R_Compressed);
-            }
-
-            /* Set the offset */
-            entry->Offset = ftell(output);
-            /* FileRedirection */
+            /* Get the buffer */
+            W_GetBuffer(wad, entry->XXHash);
+            /* The type is FileRedirection ? */
             if (entry->Type == FileRedirection)
             {
-                /* Write the length */
-                fwrite(&entry->Buffer->Size, 4, 1, output);
+                /* Set the offset */
+                entry->Offset = ftell(output);
+                /* Write the cData */
+                fwrite(entry->Buffer->cData, entry->Buffer->cSize, 1, output);
             }
-            /* Write the cache */
-            fwrite(entry->Buffer->Cache, entry->Buffer->Size, 1, output);
+            else
+            {
+                /* Set to zero */
+                uint32_t offset = 0;
+                /* Loop, Find duplicate */
+                for (size_t i = 0; i < index; i++)
+                {
+                    /* if it matches */
+                    if (checksums[i] == entry->Checksum)
+                    {
+                        /* Set the offset */
+                        offset = offsets[i];
+                        /* Break */
+                        break;
+                    }
+                }
+                /* If a match is found, offset is not zero */
+                if (offset != 0)
+                {
+                    /* Set the offset */
+                    entry->Offset = offset;
+                    /* Is duplicated */
+                    entry->IsDuplicated = 1;
+                } /* No match found */
+                else
+                {
+                    /* Set the offset */
+                    entry->Offset = ftell(output);
+                    /* Write the cData */
+                    fwrite(entry->Buffer->cData, entry->Buffer->cSize, 1, output);
+
+                    /* Set checksum to list */
+                    checksums[index] = entry->Checksum;
+                    /* Set offset to list */
+                    offsets[index] = entry->Offset;
+                }
+            }
+            /* index + 1 */
+            index++;
             /* to Next */
             entry = entry->Next;
         }
+        /* free the checksum list */
+        free(checksums);
+        /* free the offset list */
+        free(offsets);
 
         /* go to the hashes offset */
         fseek(output, hOffset, SEEK_SET);

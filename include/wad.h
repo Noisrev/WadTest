@@ -3,11 +3,6 @@
 
 #define XXH_INLINE_ALL
 
-/* Compressed type */
-#define R_Compressed 1
-/* Uncompressed type */
-#define R_Uncmpressed 0
-
 #include <stdio.h>
 #include "xxhash.h"
 /* Wad entry type*/
@@ -26,14 +21,18 @@ typedef enum W_Type
 // The Buffer
 typedef struct W_Buffer
 {
-    /* Data */
-    void *Cache;
-    /* Size */
-    uint32_t Size;
+    /* compressed */
+    void *cData;
+    /* compressed size*/
+    uint32_t cSize;
+    /* uncompressed */
+    void *dData;
+    /* uncompressed size*/
+    uint32_t dSize;
 } Buffer;
 
 // Wad entry
-typedef struct W_Entry
+typedef struct _W_Entry
 {
     /* Wad entry hash */
     uint64_t XXHash;
@@ -54,7 +53,7 @@ typedef struct W_Entry
     /* Data */
     Buffer *Buffer;
     /* Next entry */
-    struct W_Entry *Next;
+    struct _W_Entry *Next;
 } WADEntry;
 
 // Riot wad file.
@@ -94,7 +93,7 @@ int W_Change(Wad *wad, uint64_t hash, void *buffer, size_t size);
 WADEntry *W_Find(Wad *wad, uint64_t hash);
 
 // Get the content of the buffer for the specified hash.
-Buffer *W_GetBuffer(Wad *wad, uint64_t hash, int R_Comp);
+Buffer *W_GetBuffer(Wad *wad, uint64_t hash);
 
 // Get the entry using the index.
 WADEntry *W_GetEntry(Wad *wad, int index);
@@ -106,7 +105,10 @@ void W_Remove(Wad *wad, uint64_t hash);
 void W_Close(Wad **wad);
 
 /* Foreach in wad entries. */
-void W_ForEach(Wad *wad, void(*func)(WADEntry** entry));
+void W_ForEach(Wad *wad, void (*func)(WADEntry *entry));
+
+/* Foreach in wad entries. Attach the Wad* Wad parameter. */
+void W_WForEach(Wad *wad, void (*func)(Wad *wad, WADEntry *entry));
 
 /* Write Wad File */
 void W_Write(Wad *wad, const wchar_t *path);
