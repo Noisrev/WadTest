@@ -51,7 +51,7 @@ void _free_entry(WADEntry **entry)
 void *w_malloc(size_t size)
 {
     /* create */
-    void const *buffer = malloc(size);
+    void *buffer = malloc(size);
     /* Set the buffer byte to 0 */
     memset(buffer, 0, size);
     /* Return */
