@@ -10,6 +10,7 @@ int IsNULL(Wad *wad)
     /* wad is NULL ? */
     if (wad == NULL)
     {
+        printf("W_Add: \"wad is null !\"\n");
         // true
         return 1;
     }
@@ -149,14 +150,14 @@ int W_Add(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType type)
     /* wad is NULL ? */
     if (IsNULL(wad)) /* true */
     {
-        /* */
-        return -1;
+        /* Return */
+        return 1;
     }
     /* Exist ? */
     if (W_Find(wad, hash))
     {
         /* Return */
-        return 0;
+        return 1;
     }
     /* a new node */
     WADEntry *node = (WADEntry *)w_malloc(sizeof(WADEntry));
@@ -257,15 +258,15 @@ int W_Add(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType type)
     /* count + 1 */
     wad->Count++;
 
-    /* Return true */
-    return 1;
+    /* Return */
+    return 0;
 }
 
 int W_Change(Wad *wad, uint64_t hash, void *buffer, size_t size)
 {
     if (IsNULL(wad))
     {
-        return -1;
+        return 1;
     }
     /* node */
     WADEntry *entry;
@@ -310,7 +311,7 @@ int W_Change(Wad *wad, uint64_t hash, void *buffer, size_t size)
                 /* failed. set to oldBuffer */
                 entry->Buffer = oldBuffer;
                 /* Return */
-                return -1;
+                return 1;
             }
         } /* Zstd */
         else if (entry->Type == ZStandardCompressed)
@@ -344,12 +345,12 @@ int W_Change(Wad *wad, uint64_t hash, void *buffer, size_t size)
         /* Set the checksum */
         entry->Checksum = XXH_INLINE_XXH3_64bits(entry->Buffer->cData, entry->Buffer->cSize);
         /* Return true */
-        return 1;
+        return 0;
     }
     else
     {
         /* Return */
-        return 0;
+        return 1;
     }
 }
 
