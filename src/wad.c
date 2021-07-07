@@ -51,7 +51,7 @@ void _free_entry(WADEntry **entry)
 void *w_malloc(size_t size)
 {
     /* create */
-    void *buffer = malloc(size);
+    void const *buffer = malloc(size);
     /* Set the buffer byte to 0 */
     memset(buffer, 0, size);
     /* Return */
@@ -84,6 +84,23 @@ Wad *W_Open(const wchar_t *path)
     }
     /* Read the header */
     fread(wad, 1, 268, wad->Buffer);
+    /* Check magic code */
+    if (wad->Magic[0] != 'R' && wad->Magic[1] != 'W')
+    {
+        /* print error */
+        printf("Invalid magic code: %s \n", wad->Magic);
+        /* Close the wad */
+        W_Close(&wad);
+        return NULL;
+    }
+    if (wad->Major != 3 && wad->Minor != 1)
+    {
+        /* print */
+        printf("Invalid wad version : %d.%d", wad->Major, wad->Minor);
+        /* Close the wad */
+        W_Close(&wad);
+        return NULL;
+    }
     /* Read the count*/
     fread(&wad->Count, 1, 4, wad->Buffer);
 
@@ -161,7 +178,7 @@ int W_Add(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType type)
     {
         /* destination */
         size_t dSize = 0;
-        void *dBuff = NULL;
+        void const *dBuff = NULL;
         /* gzip */
         if (type == GZipCompressed)
         {
@@ -171,7 +188,17 @@ int W_Add(Wad *wad, uint64_t hash, void *buffer, size_t size, EntryType type)
             dBuff = w_malloc(dSize);
 
             /* compress */
-            compress(dBuff, &dSize, buffer, size);
+            if (compress(dBuff, &dSize, buffer, size) != Z_OK)
+            {
+                /* print error */
+                printf("compress failed : %lld\n", hash);
+                /* free the buffer */
+                free(dBuff);
+                /* free the entry */
+                _free_entry(&node);
+                /* Return */
+                return -1;
+            }
         } /* zstd */
         else if (type == ZStandardCompressed)
         {
@@ -241,7 +268,17 @@ int W_Change(Wad *wad, uint64_t hash, void *buffer, size_t size)
             entry->Buffer->Size = compressBound(size);
             entry->Buffer->Cache = w_malloc(entry->Buffer->Size);
             /* compress */
-            compress(entry->Buffer->Cache, &entry->Buffer->Size, buffer, size);
+            if (compress(entry->Buffer->Cache, &entry->Buffer->Size, buffer, size))
+            {
+                /* print error */
+                printf("compress failed : %lld, on change method.\n", hash);
+                /* free the buffer */
+                _free_entry_buffer(&entry->Buffer);
+                /* to back */
+                entry->Buffer = oldBuffer;
+                /* Return */
+                return -1;
+            }
         } /* Zstd */
         else if (entry->Type == ZStandardCompressed)
         {
@@ -344,7 +381,17 @@ Buffer *W_GetBuffer(Wad *wad, uint64_t hash, int R_Comp)
                 if (entry->Type == GZipCompressed)
                 {
                     /* gzip decompress */
-                    uncompress(entry->Buffer->Cache, &entry->UncompressedSize, compressBuffer, entry->CompressedSize);
+                    if (uncompress(entry->Buffer->Cache, &entry->UncompressedSize, compressBuffer, entry->CompressedSize) != Z_OK)
+                    {
+                        /* print erro */
+		                printf("W_GetBuffer: \"uncompress failed : %lld\"\n");
+                        /* free the buffer */
+                        _free_entry_buffer(&entry->Buffer);
+                        /* free data */
+                        free(compressBuffer);
+                        /* Return */
+                        return NULL;
+                    }
                 }
                 else if (entry->Type == ZStandardCompressed)
                 {
