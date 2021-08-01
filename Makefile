@@ -51,7 +51,7 @@ INCLUDES	:= $(patsubst %,-I%, $(INCLUDEDIRS:%/=%))
 LIBS		:= $(patsubst %,-L%, $(LIBDIRS:%/=%))
 
 # define the C source files
-SOURCES		:= $(wildcard $(patsubst %,%/*.c, $(SOURCEDIRS)))
+SOURCES		:= $(wildcard $(patsubst %,%/*.c,%/*.cpp, $(SOURCEDIRS)))
 
 # define the C object files 
 OBJECTS		:= $(SOURCES:.c=.o)
