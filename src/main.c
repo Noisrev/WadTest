@@ -1,4 +1,4 @@
-#include "../include/wad.h"
+#include "wad.h"
 
 int main()
 {
