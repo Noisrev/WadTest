@@ -51,7 +51,7 @@ INCLUDES	:= $(patsubst %,-I%, $(INCLUDEDIRS:%/=%))
 LIBS		:= $(patsubst %,-L%, $(LIBDIRS:%/=%))
 
 # define the C source files
-SOURCES		:= $(wildcard $(patsubst %,%/*.cpp, $(SOURCEDIRS)))
+SOURCES		:= $(wildcard $(patsubst %,%/*.c, $(SOURCEDIRS)))
 
 # define the C object files 
 OBJECTS		:= $(SOURCES:.c=.o)
@@ -78,7 +78,7 @@ $(MAIN): $(OBJECTS)
 # it uses automatic variables $<: the name of the prerequisite of
 # the rule(a .c file) and $@: the name of the target of the rule (a .o file) 
 # (see the gnu make manual section about automatic variables)
-.cpp.o:
+.c.o:
 	$(CC) $(CFLAGS) $(INCLUDES) -c $<  -o $@
 
 .PHONY: clean
