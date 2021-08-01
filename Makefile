@@ -71,7 +71,7 @@ $(OUTPUT):
 	$(MD) $(OUTPUT)
 
 $(MAIN): $(OBJECTS)
-	g++ $(CFLAGS) src/main.cpp $(INCLUDES) -o $(OUTPUTMAIN) $(OBJECTS) $(LFLAGS) $(LIBS) -lzstd -lz
+	g++ -std=c++11 -Wall -Wextra -g src/main.cpp $(INCLUDES) -o $(OUTPUTMAIN) $(OBJECTS) $(LFLAGS) $(LIBS) -lzstd -lz
 
 
 # this is a suffix replacement rule for building .o's from .c's
